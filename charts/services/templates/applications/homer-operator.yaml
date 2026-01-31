@@ -29,6 +29,7 @@ spec:
       enabled: true
       annotations:
         homer.item.excluded: "true"
+        traefik.ingress.kubernetes.io/router.middlewares: kube-system-cluster-admin-authentication@kubernetescrd
       hosts:
         - host: dash.{{ .Values.fqdn }}
           paths:
