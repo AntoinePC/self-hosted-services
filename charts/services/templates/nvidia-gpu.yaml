@@ -13,6 +13,26 @@ spec:
   valuesContent: |-
     nfd:
       enabled: false
+
+    runtimeClassName: nvidia
+    
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: feature.node.kubernetes.io/pci-0300_10de.present
+              operator: In
+              values: ["true"]
+    
+    config:
+      default: default
+      map:
+        default: |-
+          version: v1
+          flags:
+            deviceDiscoveryStrategy: nvml
+    
     resources:
       requests:
         memory: 64Mi
