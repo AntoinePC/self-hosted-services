@@ -160,12 +160,22 @@ spec:
         annotations:
           reloader.stakater.com/auto: "true"
         podSpec:
+          {{- if eq $gpuVendor "nvidia" }}
+          runtimeClassName: nvidia
+          {{- end }}
           containers:
             machinelearning:
               env:
                 MACHINE_LEARNING_MODEL_TTL: "0"
                 MACHINE_LEARNING_MODEL_TTL_POLL_S: "0"
                 MACHINE_LEARNING_PRELOAD__CLIP__TEXTUAL: "ViT-SO400M-16-SigLIP2-384__webli"
+                {{- if eq $mlGpuVendor "nvidia" }}
+                # Mitigation for sporadic CUDA EP failures (e.g. stream-capture errors):
+                # reduce request/model thread concurrency inside the ML service.
+                MACHINE_LEARNING_REQUEST_THREADS: 4
+                MACHINE_LEARNING_MODEL_INTER_OP_THREADS: 1
+                MACHINE_LEARNING_MODEL_INTRA_OP_THREADS: 2
+                {{- end }}
               resources:
                 excludeExtra: false
                 requests:
