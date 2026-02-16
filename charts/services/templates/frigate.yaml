@@ -215,7 +215,7 @@ spec:
               resources:
                 requests:
                   memory: 1Gi
-                  cpu: 500m
+                  cpu: 250m
                 limits:
                   memory: 4Gi
                   {{- $gpuVendor := $frigateConfig.gpu_vendor }}
