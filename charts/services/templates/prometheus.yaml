@@ -366,7 +366,7 @@ spec:
           memory: 2Gi
         requests:
           memory: 1Gi
-          cpu: 2000m
+          cpu: 500m
     prometheus:
       prometheusSpec:
         enableAdminAPI: true

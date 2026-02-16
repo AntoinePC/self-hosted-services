@@ -18,7 +18,7 @@ spec:
           value: "kube-system"
       resources:
         requests:
-          cpu: 1000m
+          cpu: 100m
           memory: 256Mi
           ephemeral-storage: 500Mi
         limits:
@@ -77,7 +77,7 @@ spec:
             nas: "true"
           resources:
             requests:
-              cpu: 1000m
+              cpu: 100m
               memory: 1Gi
               ephemeral-storage: 500Mi
             limits:
