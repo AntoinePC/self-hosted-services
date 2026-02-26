@@ -11,7 +11,7 @@ metadata:
 spec:
   chart: authentik
   repo: https://charts.goauthentik.io/
-  version: 2025.12.4
+  version: 2026.2.0
   targetNamespace: "{{ .Values.applicationsNamespace }}"
   valuesContent: |-
     global:
@@ -126,7 +126,7 @@ spec:
     blueprints:
       configMaps:
         - authentik-ldap-blueprint
-        - authentik-extra-flows-blueprint
+        - authentik-extra-blueprints
         - authentik-traefik-forward-auth
 {{- if .Values.applications.home_assistant.enabled }}
         - authentik-home-assistant-blueprint
@@ -207,9 +207,30 @@ spec:
       - apiVersion: v1
         kind: ConfigMap
         metadata:
-          name: authentik-extra-flows-blueprint
+          name: authentik-extra-blueprints
           namespace: "{{ .Values.applicationsNamespace }}"
         data:
+          change-password-policy.yaml: |
+            # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+            version: 1
+            metadata:
+              name: Password policy
+            entries:
+              - identifiers:
+                  name: default-password-change-password-policy
+                model: authentik_policies_password.passwordpolicy
+                attrs:
+                  name: default-password-change-password-policy
+                  password_field: password
+                  length_min: 14
+                  amount_uppercase: 1
+                  amount_lowercase: 1
+                  amount_digits: 1
+                  amount_symbols: 1
+                  check_static_rules: true
+                  check_have_i_been_pwned: true
+                  check_zxcvbn: true
+                  zxcvbn_score_min: 3
           email-recovery-blueprint.yaml: |
             # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
             version: 1
@@ -295,7 +316,8 @@ spec:
                   fields:
                     - !KeyOf prompt-field-password
                     - !KeyOf prompt-field-password-repeat
-                  validation_policies: []
+                  validation_policies:
+                    - !Find [authentik_policies_password.passwordpolicy, [name, default-password-change-password-policy]]
               - identifiers:
                   target: !KeyOf flow
                   stage: !KeyOf default-recovery-identification
@@ -375,6 +397,11 @@ spec:
                     - email
                     - username
                   recovery_flow: !Find [authentik_flows.flow, [slug, default-recovery-flow]]
+              - identifiers:
+                  domain: authentik-default
+                model: authentik_brands.brand
+                attrs:
+                  flow_recovery: !Find [authentik_flows.flow, [slug, default-recovery-flow]]
           two-factor-login-blueprint.yaml: |
             # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
             version: 1
