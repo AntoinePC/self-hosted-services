@@ -26,3 +26,43 @@
   loop_control:
     label: "{{ item.name }}"
   notify: Restart firewall
+
+- name: Forward Valheim WAN ports to Kubernetes NodePort
+  vars:
+    valheim_config: "{{ (((chartValuesOverrides | default({})).applications | default({})).valheim | default({})) }}"
+    valheim_target_ip: "{{ (haproxy.servers | dict2items | first).value }}"
+  when: valheim_config.enabled | default(false)
+  ansible.builtin.shell: |
+    set -eu
+    uci -q delete firewall.valheim_game || true
+    uci -q delete firewall.valheim_query || true
+    uci batch <<'EOF'
+    set firewall.valheim=redirect
+    set firewall.valheim.name='GL-Valheim'
+    set firewall.valheim.src='wan'
+    set firewall.valheim.dest='lan'
+    set firewall.valheim.proto='udp'
+    set firewall.valheim.src_dport='2456-2457'
+    set firewall.valheim.dest_ip='{{ valheim_target_ip }}'
+    set firewall.valheim.dest_port='{{ valheim_config.node_ports.game | default(32456) }}-{{ valheim_config.node_ports.query | default(32457) }}'
+    set firewall.valheim.target='DNAT'
+    set firewall.valheim.reflection='1'
+    commit firewall
+    EOF
+  changed_when: true
+  notify: Restart firewall
+
+- name: Remove Valheim WAN forwards when disabled
+  vars:
+    valheim_config: "{{ (((chartValuesOverrides | default({})).applications | default({})).valheim | default({})) }}"
+  when: not (valheim_config.enabled | default(false))
+  community.openwrt.uci:
+    command: delete
+    key: "firewall.{{ item }}"
+    autocommit: true
+  loop:
+    - valheim
+    - valheim_game
+    - valheim_query
+  failed_when: false
+  notify: Restart firewall
