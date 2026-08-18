@@ -23,9 +23,14 @@
         update_cache: true
 
 - name: Install OpenWrt packages
-  become: true
   when: detect_is_openwrt
   block:
+    # Keep this list minimal on vendor SDK firmware (GL.iNet/QSDK). Packages that
+    # shadow busybox applets or hook netfilter are risky here: the vendor's own init
+    # and `gl-*` scripts are written against busybox semantics and the Qualcomm
+    # NSS/ECM stack owns the netfilter fast path. `ip6tables-nft` and
+    # `procps-ng-pkill` were previously installed but are referenced nowhere in this
+    # repo, so they are not worth that risk.
     - name: Install common packages
       community.general.opkg:
         name:
@@ -34,10 +39,15 @@
           - fish
           - haproxy
           - htop
-          - ip6tables-nft
-          - luci-app-sqm
           - nnn
-          - procps-ng-pkill
           - tailscale
           - tmux
           - vim
+
+    # Only pull in SQM (and its kmod-sched-* dependencies) on hosts that actually
+    # configure QoS; roles/qos takes the disable path when `qos` is undefined.
+    - name: Install SQM packages
+      when: qos is defined
+      community.general.opkg:
+        name:
+          - luci-app-sqm

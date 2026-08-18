@@ -31,7 +31,18 @@
     name: network
     state: reloaded
 
-- name: Restart firewall
+# `nft -f` is transactional: if the generated ruleset has a single bad rule the whole
+# load aborts and the router is left with no firewall and no NAT. Validate before
+# restarting so a bad config fails the play loudly instead of silently downing the WAN.
+- name: Validate fw4 ruleset
+  listen: Restart firewall
+  when: detect_is_openwrt | default(false)
+  become: true
+  ansible.builtin.command: sh -c 'fw4 print | nft -c -f -'
+  changed_when: false
+
+- name: Restart firewall service
+  listen: Restart firewall
   become: true
   ansible.builtin.service:
     name: firewall

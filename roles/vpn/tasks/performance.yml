@@ -3,34 +3,48 @@
 
 - name: Enable UDP throughput improvements via transport layer offloading
   when: detect_is_openwrt and ansible_kernel is version('6.2', '>=')
+  vars:
+    # 90-ethtool.j2 uses each UCI section name as the interface name, so this must
+    # name a real device. It also needs the *physical* NIC: on a PPPoE WAN
+    # `detect_wan_interface` resolves to pppoe-wan, which cannot carry these
+    # offloads - set `vpn_offload_interface` to the underlying device (e.g. eth0).
+    vpn_offload_device: "{{ vpn_offload_interface | default(detect_wan_interface) }}"
   block:
-    - name: Ensure ethtool config file exists
-      ansible.builtin.file:
-        path: /etc/config/ethtool
-        state: touch
-        modification_time: preserve
-        access_time: preserve
-        mode: '0644'
+    - name: Check the offload interface exists
+      ansible.builtin.stat:
+        path: "/sys/class/net/{{ vpn_offload_device }}"
+      register: vpn_offload_dev
 
-    - name: Enable UDP offloading in ethtool
-      community.openwrt.uci:
-        command: section
-        config: ethtool
-        section: eth1
-        type: device
-        value:
-          rx_gro_list: 'off'
-          rx_udp_gro_forwarding: 'on'
-        autocommit: true
+    - name: Configure ethtool offloading
+      when: vpn_offload_dev.stat.exists
+      block:
+        - name: Ensure ethtool config file exists
+          ansible.builtin.file:
+            path: /etc/config/ethtool
+            state: touch
+            modification_time: preserve
+            access_time: preserve
+            mode: '0644'
 
-    - name: Generate ethtool hot reload script from template
-      ansible.builtin.template:
-        src: openwrt/90-ethtool.j2
-        dest: /etc/hotplug.d/iface/90-ethtool
-        mode: '0755'
+        - name: Enable UDP offloading in ethtool
+          community.openwrt.uci:
+            command: section
+            config: ethtool
+            name: "{{ vpn_offload_device }}"
+            type: device
+            value:
+              rx_gro_list: 'off'
+              rx_udp_gro_forwarding: 'on'
+            autocommit: true
 
-    - name: Preserve ethtool across upgrades
-      ansible.builtin.lineinfile:
-        path: /etc/sysupgrade.conf
-        line: "/etc/hotplug.d/iface/90-ethtool"
-        state: present
+        - name: Generate ethtool hot reload script from template
+          ansible.builtin.template:
+            src: openwrt/90-ethtool.j2
+            dest: /etc/hotplug.d/iface/90-ethtool
+            mode: '0755'
+
+        - name: Preserve ethtool across upgrades
+          ansible.builtin.lineinfile:
+            path: /etc/sysupgrade.conf
+            line: "/etc/hotplug.d/iface/90-ethtool"
+            state: present
