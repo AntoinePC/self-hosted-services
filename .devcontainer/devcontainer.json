@@ -1,20 +1,67 @@
 {
 	"name": "Self-hosted services devcontainer",
 	"image": "ghcr.io/arch-anes/dev-container-kubernetes-ansible:latest",
-	"postAttachCommand": "sudo virtlogd -d && sudo libvirtd -d && ansible-galaxy install -r requirements.yml --force",
+	// molecule drives real VMs through the vagrant-libvirt driver from inside this
+	// container, which needs /dev/kvm and host cgroups. Same flags .woodpecker/test.yaml
+	// uses, so a local `molecule test` matches CI.
 	"runArgs": [
 		"--privileged",
 		"--cgroupns=host"
 	],
+	"remoteUser": "vscode",
+	// [LINUX ONLY] Remap the container user to the host UID/GID (default on Linux).
+	// Keeps files written inside the container owned by you on the host -- and matters
+	// more than usual here, because ~/.ssh is bind-mounted from the host below and ssh
+	// refuses to use a private key it does not consider correctly owned.
+	"updateRemoteUserUID": true,
 	"features": {
-		"ghcr.io/stuartleeks/dev-container-features/shell-history:0": {}
+		// Persists bash and zsh history to its own managed volume at /dc/shellhistory.
+		"ghcr.io/stuartleeks/dev-container-features/shell-history:0": {},
+		"ghcr.io/devcontainers/features/sshd:1": {
+			"version": "latest"
+		},
+		"ghcr.io/meaningful-ooo/devcontainer-features/fish:1": {},
+		// Provides the pre-commit binary that postCreateCommand installs the hooks with.
+		// See .pre-commit-config.yaml for what actually runs.
+		"ghcr.io/prulloac/devcontainer-features/pre-commit:1": {}
 	},
 	"customizations": {
 		"vscode": {
 			"settings": {
-				"dev.containers.dockerCredentialHelper": false
+				"dev.containers.dockerCredentialHelper": false,
+				"terminal.integrated.defaultProfile.linux": "fish",
+				"terminal.integrated.profiles.linux": {
+					"fish": {
+						"path": "fish"
+					},
+					"bash": {
+						"path": "bash",
+						"icon": "terminal-bash"
+					},
+					"zsh": {
+						"path": "zsh"
+					}
+				},
+				// The redhat.ansible extension needs the interpreter that actually has
+				// ansible importable. It is installed via pipx, so it is not the python3
+				// first on PATH (that one is linuxbrew's).
+				"ansible.python.interpreterPath": "/opt/pipx/venvs/ansible/bin/python",
+				// Ansible-vault ciphertext in inventories is a !vault-tagged scalar;
+				// without this redhat.vscode-yaml flags every vaulted value as an error.
+				"yaml.customTags": [
+					"!vault scalar"
+				],
+				// Deliberately NOT enabling format-on-save for YAML. CI gates style with
+				// `yamlfmt -lint` (.woodpecker/lint.yaml), and redhat.vscode-yaml formats
+				// via Prettier -- the two disagree, so saving a file would rewrite it into
+				// a shape yamlfmt then rejects. Run `yamlfmt` to format instead.
+				"[yaml]": {
+					"editor.formatOnSave": false
+				},
+				"redhat.telemetry.enabled": false
 			},
 			"extensions": [
+				"anthropic.claude-code",
 				"bierner.markdown-mermaid",
 				"bmarkovic.haproxy",
 				"chrislajoie.vscode-modelines",
@@ -32,7 +79,6 @@
 				"redhat.ansible",
 				"redhat.vscode-yaml",
 				"sandipchitale.vscode-kubernetes-helm-extras",
-				"signageos.signageos-vscode-sops",
 				"Tim-Koehler.helm-intellisense",
 				"VadzimNestsiarenka.helm-template-preview-and-more",
 				"wholroyd.jinja",
@@ -40,17 +86,40 @@
 			]
 		}
 	},
-	"features": {
-		"ghcr.io/devcontainers/features/sshd:1": {
-			"version": "latest"
-		}
-	},
 	"mounts": [
-		"source=${localEnv:SSH_AUTH_SOCK},target=/ssh-agent,type=bind,consistency=cached",
-		"source=${localEnv:HOME}/.ssh/config,target=/home/vscode/.ssh/config,type=bind,consistency=cached",
-        "source=${localEnv:HOME}/.ssh/known_hosts,target=/home/vscode/.ssh/known_hosts,type=bind,consistency=cached"
+		// The SSH agent is forwarded automatically by the Dev Containers extension,
+		// which also sets SSH_AUTH_SOCK in the container. Do not bind-mount
+		// ${localEnv:SSH_AUTH_SOCK}: it is resolved once at container creation, so the
+		// container stops starting as soon as the agent restarts under a new socket name.
+		"source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
+		// ansible-galaxy pulls ~60 MB of collections and roles into ANSIBLE_HOME
+		// (/home/vscode/.ansible). Without this they are re-downloaded on every rebuild.
+		"source=self-hosted-services-ansible,target=/home/vscode/.ansible,type=volume",
+		// Persist Claude Code sessions and settings across rebuilds.
+		"source=self-hosted-services-claude,target=/home/vscode/.claude,type=volume"
+		// Shell history needs no mount here: the shell-history feature manages its own
+		// volume at /dc/shellhistory. Adding one would shadow it.
 	],
-	"remoteEnv": {
-		"SSH_AUTH_SOCK": "/ssh-agent"
+	// onCreate runs before postCreate, which is what orders the chown below against the
+	// galaxy install -- object-form commands run in parallel, so ordering has to come
+	// from the lifecycle hook itself rather than from key order.
+	"onCreateCommand": {
+		// Named volumes are created root-owned on first use.
+		"Fix volume permissions": "sudo chown -R vscode:vscode /home/vscode/.ansible /home/vscode/.claude",
+		// The shell-history feature only wires up bash and zsh.
+		"Persist fish history": "mkdir -p /home/vscode/.local/share/fish && ln -sfn /dc/shellhistory/.fish_history /home/vscode/.local/share/fish/fish_history"
+	},
+	"postCreateCommand": {
+		// Collections land in the persisted volume above, so this is nearly a no-op on
+		// rebuild. Note there is no --force: it re-downloaded every dependency on every
+		// single window attach, which is where this used to live.
+		"Install galaxy dependencies": "ansible-galaxy install -r requirements.yml",
+		"Setup pre-commit": "pre-commit install"
+	},
+	// Daemons, not setup. They die with the container, so they belong on every start
+	// rather than every attach, and the pgrep guards keep a second start from failing on
+	// an already-bound socket.
+	"postStartCommand": {
+		"Start libvirt": "pgrep -x virtlogd >/dev/null || sudo virtlogd -d; pgrep -x libvirtd >/dev/null || sudo libvirtd -d"
 	}
 }
