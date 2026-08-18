@@ -1,0 +1,70 @@
+---
+# Mirrors .woodpecker/lint.yaml. That pipeline runs on upstream's Woodpecker instance,
+# not on this GitHub fork, so these hooks are what actually gates a commit here.
+#
+# Every hook runs the CI command verbatim with pass_filenames: false, so local and CI
+# can never disagree about scope. `files:` only decides *when* a hook fires.
+#
+# All hooks use language: system -- the binaries ship in the devcontainer image.
+
+repos:
+  - repo: local
+    hooks:
+      - id: helm-lint
+        name: helm lint
+        entry: helm lint charts/services
+        language: system
+        files: ^charts/
+        pass_filenames: false
+
+      # The one that matters most: an undefined template variable is a *parse* error,
+      # so it takes down every service in the chart, not just the file containing it.
+      # This is what would have caught the immich runtimeClassName break.
+      - id: helm-template
+        name: helm template
+        entry: bash -c 'helm template charts/services >/dev/null'
+        language: system
+        files: ^charts/
+        pass_filenames: false
+
+      - id: helm-unittest
+        name: helm unittest
+        entry: helm unittest charts/services
+        language: system
+        files: ^charts/
+        pass_filenames: false
+
+      - id: ansible-lint
+        name: ansible-lint
+        entry: ansible-lint
+        language: system
+        files: ^(roles/|group_vars/|molecule/|requirements\.yml|ansible\.cfg|(setup|teardown)_.*\.yml)
+        pass_filenames: false
+
+      - id: yamllint
+        name: yamllint
+        entry: yamllint .
+        language: system
+        types: [yaml]
+        pass_filenames: false
+
+      - id: yamlfmt
+        name: yamlfmt
+        entry: yamlfmt -lint
+        language: system
+        types: [yaml]
+        pass_filenames: false
+
+      - id: black
+        name: black
+        entry: black --check .
+        language: system
+        types: [python]
+        pass_filenames: false
+
+# Deliberately omitted: the kubeconform step from .woodpecker/lint.yaml. It currently
+# reports 83 of 117 resources invalid, because the CRDs-catalog schema for
+# helm.cattle.io/HelmChart predates the serverSide and forceConflicts fields that
+# b33fc224 added repo-wide. Wiring it in as-is would block every commit on a
+# pre-existing, unrelated failure. Worth fixing separately (vendor the schema, or
+# pin -schema-location to one that knows those fields), then adding back here.
