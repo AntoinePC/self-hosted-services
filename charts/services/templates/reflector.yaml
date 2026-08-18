@@ -14,7 +14,8 @@ spec:
   forceConflicts: true
   values:
     autoscaling:
-      enabled: true
+      enabled: false
+    replicaCount: 1
     resources:
       requests:
         cpu: {{ include "app.resources.cpu" (list $ "100m") }}
