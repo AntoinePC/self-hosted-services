@@ -24,7 +24,16 @@ spec:
   repo: https://intel.github.io/helm-charts/
   version: 0.36.0
   targetNamespace: kube-system
-  serverSide: "true"
+  # Client-side apply on purpose. This chart renders .spec.bypathMode on the
+  # GpuDevicePlugin CR, but the in-cluster CRD predates that field (installed
+  # 2026-01-04 from chart ~0.34.x; Helm never upgrades files under crds/).
+  # Server-side apply builds a typed patch from the CRD schema and hard-fails:
+  #   .spec.bypathMode: field not declared in schema
+  # which leaves the device plugin uninstalled and nodes advertising
+  # gpu.intel.com/xe: 0. Client-side apply prunes the undeclared field instead,
+  # so the operator falls back to its own default (single) — the behaviour this
+  # cluster has actually been running since January.
+  serverSide: "false"
   forceConflicts: true
   values:
     tolerations:
