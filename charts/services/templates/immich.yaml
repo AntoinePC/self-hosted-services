@@ -124,7 +124,7 @@ spec:
         annotations:
           reloader.stakater.com/auto: "true"
         podSpec:
-          {{- if eq $gpuVendor "nvidia" }}
+          {{- if eq $mlGpuVendor "nvidia" }}
           runtimeClassName: nvidia
           {{- end }}
           containers:
