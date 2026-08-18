@@ -7,7 +7,26 @@
     autocommit: true
   failed_when: false
 
-- name: Enable hardware flow offloading
+# Vendor SDK firmware accelerates forwarding with its own engine (on GL.iNet/QSDK
+# boards, Qualcomm NSS/ECM). Forcing the kernel nftables flowtable on top of it makes
+# fw4 emit a `flow offload @ft` rule whose flowtable the vendor driver cannot
+# instantiate, and because `nft -f` is transactional the *entire* ruleset load aborts:
+# the router boots with no fw4 table, so no NAT and no internet. Leave the platform
+# default alone unless the operator explicitly opts in.
+- name: Reset flow offloading to the platform default
+  when: not (qos_force_flow_offloading | default(false))
+  notify: Restart firewall
+  community.openwrt.uci:
+    command: delete
+    key: "firewall.@defaults[0].{{ item }}"
+    autocommit: true
+  failed_when: false
+  loop:
+    - flow_offloading
+    - flow_offloading_hw
+
+- name: Enable flow offloading
+  when: qos_force_flow_offloading | default(false)
   notify: Restart firewall
   community.openwrt.uci:
     command: set
