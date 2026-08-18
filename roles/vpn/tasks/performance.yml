@@ -3,22 +3,34 @@
 
 - name: Enable UDP throughput improvements via transport layer offloading
   when: prepare_detect_is_openwrt and ansible_facts['kernel'] is version('6.2', '>=')
+  vars:
+    # The hotplug script uses UCI section names as device names. For PPPoE,
+    # vpn_offload_interface must name the underlying physical NIC.
+    vpn_offload_device: "{{ vpn_offload_interface | default(prepare_detect_wan_interface) }}"
   block:
-    - name: Ensure ethtool config file exists
-      ansible.builtin.file:
-        path: /etc/config/ethtool
-        state: touch
-        modification_time: preserve
-        access_time: preserve
-        mode: '0644'
+    - name: Check the offload interface exists
+      ansible.builtin.stat:
+        path: "/sys/class/net/{{ vpn_offload_device }}"
+      register: vpn_offload_dev
 
-    - name: Enable UDP offloading in ethtool
-      community.openwrt.uci:
-        command: section
-        config: ethtool
-        section: "{{ prepare_detect_wan_interface }}"
-        type: device
-        value:
-          rx_gro_list: 'off'
-          rx_udp_gro_forwarding: 'on'
-        autocommit: true
+    - name: Configure ethtool offloading
+      when: vpn_offload_dev.stat.exists
+      block:
+        - name: Ensure ethtool config file exists
+          ansible.builtin.file:
+            path: /etc/config/ethtool
+            state: touch
+            modification_time: preserve
+            access_time: preserve
+            mode: '0644'
+
+        - name: Enable UDP offloading in ethtool
+          community.openwrt.uci:
+            command: section
+            config: ethtool
+            name: "{{ vpn_offload_device }}"
+            type: device
+            value:
+              rx_gro_list: 'off'
+              rx_udp_gro_forwarding: 'on'
+            autocommit: true
