@@ -223,6 +223,23 @@ routers:
 
 Run the router setup playbook to apply the configuration.
 
+Router setup validates the existing firewall before changing settings and keeps a
+private temporary backup on the router. If a configuration task or firewall
+validation fails, it restores `/etc/config/firewall` for the next boot and stops
+without a recovery restart. Other settings are not rolled back. Loss of SSH or
+power can prevent recovery; this is not a substitute for console access or a
+firmware backup. Pending UCI firewall edits must be committed or reverted first.
+
+On Qualcomm NSS firmware (including the Flint 3), leave
+`qos_force_flow_offloading` unset or false. Router setup rejects enabling kernel
+flow offloading on detected NSS hardware. The MediaTek GRO workaround is restricted
+to the `mtk_soc_eth` driver; VPN UDP offloading requires kernel 6.2 or newer.
+
+The local regression tests use temporary files and fake firewall commands:
+`python -m unittest discover -s tests -p 'test_router_safety.py' -v`
+(run with Python from the Ansible environment).
+
+
 ## Deploy
 
 Complete the applicable [manual application setup](APPLICATIONS.md#services-that-need-manual-setup), then run:

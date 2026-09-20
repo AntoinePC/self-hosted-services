@@ -7,6 +7,10 @@
 - name: Setup Homebrew
   ansible.builtin.include_tasks: homebrew.yml
 
+- name: Setup OpenWrt ethtool
+  ansible.builtin.include_tasks: openwrt_ethtool.yml
+  when: prepare_detect_is_openwrt
+
 - name: Setup kernel
   ansible.builtin.include_tasks: kernel.yml
 
@@ -24,10 +28,6 @@
 
 - name: Setup monitoring
   ansible.builtin.include_tasks: monitoring.yml
-
-- name: Setup OpenWrt ethtool
-  ansible.builtin.include_tasks: openwrt_ethtool.yml
-  when: prepare_detect_is_openwrt
 
 - name: Setup firewall
   ansible.builtin.import_role:

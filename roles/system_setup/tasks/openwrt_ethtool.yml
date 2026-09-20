@@ -1,6 +1,14 @@
 # code: language=ansible
 ---
 
+- name: Ensure ethtool config file exists
+  ansible.builtin.file:
+    path: /etc/config/ethtool
+    state: touch
+    modification_time: preserve
+    access_time: preserve
+    mode: '0644'
+
 - name: Generate ethtool hot reload script from template
   ansible.builtin.template:
     src: openwrt/90-ethtool.j2
