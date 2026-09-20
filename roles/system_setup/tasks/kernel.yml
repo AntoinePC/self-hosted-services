@@ -36,17 +36,19 @@
   block:
     - name: Query interface driver information
       ansible.builtin.command:
-        cmd: "ethtool -i {{ prepare_detect_wan_interface | default('eth1') }}"
+        argv: [ethtool, -i, "{{ prepare_detect_wan_interface }}"]
       register: system_setup_ethtool_driver
       changed_when: false
       failed_when: false
 
     - name: Disable GRO on buggy network drivers
-      when: "'mtk_soc_eth' in (system_setup_ethtool_driver.stdout | default(''))"
+      when:
+        - system_setup_ethtool_driver.rc == 0
+        - "'driver: mtk_soc_eth' in (system_setup_ethtool_driver.stdout_lines | default([]))"
       community.openwrt.uci:
         command: section
         config: ethtool
-        section: "{{ prepare_detect_wan_interface | default('eth1') }}"
+        name: "{{ prepare_detect_wan_interface }}"
         type: device
         value:
           generic_receive_offload: 'off'
