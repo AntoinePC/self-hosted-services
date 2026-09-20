@@ -1,0 +1,5 @@
+# code: language=ansible
+---
+
+- name: Configure router services
+  ansible.builtin.include_tasks: configure.yml
