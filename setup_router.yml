@@ -17,24 +17,5 @@
     - name: Prepare hosts and controller state
       role: prepare
 
-    - name: Setup system
-      role: system_setup
-      when:
-        - not skip_system_setup
-
-    - name: Create a VPN mesh network
-      role: vpn
-      when:
-        - not skip_vpn_setup
-
-    # Defaulted so no inventory change is needed; set either to true to bring the
-    # router up in stages when bisecting a boot problem.
-    - name: Setup haproxy
-      role: haproxy
-      when:
-        - not (skip_haproxy_setup | default(false))
-
-    - name: Setup QoS
-      role: qos
-      when:
-        - not (skip_qos_setup | default(false))
+    - name: Configure router services
+      role: router_setup
