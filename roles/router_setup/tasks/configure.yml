@@ -1,0 +1,28 @@
+# code: language=ansible
+---
+
+- name: Setup system
+  ansible.builtin.include_role:
+    name: system_setup
+  when:
+    - not skip_system_setup
+
+- name: Create a VPN mesh network
+  ansible.builtin.include_role:
+    name: vpn
+  when:
+    - not skip_vpn_setup
+
+# Defaulted so no inventory change is needed; set either to true to bring the
+# router up in stages when bisecting a boot problem.
+- name: Setup haproxy
+  ansible.builtin.include_role:
+    name: haproxy
+  when:
+    - not (skip_haproxy_setup | default(false))
+
+- name: Setup QoS
+  ansible.builtin.include_role:
+    name: qos
+  when:
+    - not (skip_qos_setup | default(false))
