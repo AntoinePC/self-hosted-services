@@ -1,5 +1,112 @@
 # code: language=ansible
 ---
 
-- name: Configure router services
+- name: Require OpenWrt for router setup
+  ansible.builtin.assert:
+    that: prepare_detect_is_openwrt
+
+- name: Detect Qualcomm acceleration modules
+  ansible.builtin.stat:
+    path: "/sys/module/{{ item }}"
+  loop:
+    - ecm
+    - qca_nss_dp
+  register: router_setup_acceleration_modules
+
+- name: Refuse kernel flow offloading on Qualcomm NSS firmware
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (qos_force_flow_offloading | default(false) | bool) or
+        router_setup_acceleration_modules.results | selectattr('stat.exists') | list | length == 0
+    fail_msg: >-
+      Kernel flow offloading can prevent fw4 from loading on Qualcomm NSS firmware.
+      Remove qos_force_flow_offloading or set it to false before configuring this router.
+
+- name: Validate the existing firewall before changing router configuration
+  ansible.builtin.command: fw4 check
+  changed_when: false
+  check_mode: false
+
+- name: Check for pending firewall edits
+  ansible.builtin.command: uci changes firewall
+  register: router_setup_pending_firewall
+  changed_when: false
+  check_mode: false
+  no_log: true
+
+- name: Require a clean firewall configuration for rollback
+  ansible.builtin.assert:
+    that: router_setup_pending_firewall.stdout | trim | length == 0
+    fail_msg: Commit or revert pending firewall edits before running router setup.
+
+- name: Preview router configuration
   ansible.builtin.include_tasks: configure.yml
+  when: ansible_check_mode
+
+- name: Protect the persistent firewall configuration
+  when: not ansible_check_mode
+  block:
+    - name: Create private firewall backup directory
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: ansible-router-firewall-
+      register: router_setup_backup
+      changed_when: false
+
+    - name: Save the validated firewall configuration on the router
+      ansible.builtin.copy:
+        src: /etc/config/firewall
+        dest: "{{ router_setup_backup.path }}/firewall"
+        remote_src: true
+        mode: preserve
+      changed_when: false
+      diff: false
+
+    - name: Configure router with firewall recovery
+      block:
+        - name: Configure router services
+          ansible.builtin.include_tasks: configure.yml
+
+        - name: Validate persistent firewall configuration before finishing
+          ansible.builtin.command: fw4 check
+          changed_when: false
+
+        - name: Mark router configuration successful
+          ansible.builtin.set_fact:
+            router_setup_completed: true
+
+      rescue:
+        # Restoring the file also protects the next boot. Do not restart services
+        # here: a failed check must leave the running firewall untouched.
+        - name: Restore the validated firewall configuration
+          ansible.builtin.copy:
+            src: "{{ router_setup_backup.path }}/firewall"
+            dest: /etc/config/firewall
+            remote_src: true
+            mode: preserve
+          diff: false
+
+        - name: Discard pending firewall changes
+          ansible.builtin.command: uci revert firewall
+          changed_when: true
+
+        - name: Mark firewall configuration restored
+          ansible.builtin.set_fact:
+            router_setup_restored: true
+
+        - name: Stop after restoring the firewall configuration
+          ansible.builtin.fail:
+            msg: >-
+              Router setup failed. The original validated firewall configuration
+              was restored for the next boot; no recovery restart was attempted.
+              Other router settings are not rolled back. Review the failed task
+              before retrying. Do not reboot to test this failure.
+
+      always:
+        - name: Remove firewall backup after success or completed restoration
+          ansible.builtin.file:
+            path: "{{ router_setup_backup.path }}"
+            state: absent
+          changed_when: false
+          when: router_setup_completed | default(false) or router_setup_restored | default(false)

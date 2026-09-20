@@ -14,7 +14,7 @@
 # the router boots with no fw4 table, so no NAT and no internet. Leave the platform
 # default alone unless the operator explicitly opts in.
 - name: Reset flow offloading to the platform default
-  when: not (qos_force_flow_offloading | default(false))
+  when: not (qos_force_flow_offloading | default(false) | bool)
   notify: Restart firewall
   community.openwrt.uci:
     command: delete
@@ -26,7 +26,7 @@
     - flow_offloading_hw
 
 - name: Enable flow offloading
-  when: qos_force_flow_offloading | default(false)
+  when: qos_force_flow_offloading | default(false) | bool
   notify: Restart firewall
   community.openwrt.uci:
     command: set

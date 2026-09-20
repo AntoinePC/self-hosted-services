@@ -1,5 +1,17 @@
 # code: language=ansible
 ---
+# Network and SQM reloads may trigger firewall reloads themselves. Ansible runs
+# handlers in definition order, so validation must precede all three services.
+- name: Validate fw4 ruleset
+  listen:
+    - Restart firewall
+    - Reload network
+    - Reload sqm
+  when: prepare_detect_is_openwrt | default(false)
+  become: true
+  ansible.builtin.command: fw4 check
+  changed_when: false
+
 - name: Restart systemd-resolved
   become: true
   ansible.builtin.systemd:
@@ -31,22 +43,13 @@
     name: network
     state: reloaded
 
-# `nft -f` is transactional: if the generated ruleset has a single bad rule the whole
-# load aborts and the router is left with no firewall and no NAT. Validate before
-# restarting so a bad config fails the play loudly instead of silently downing the WAN.
-- name: Validate fw4 ruleset
-  listen: Restart firewall
-  when: prepare_detect_is_openwrt | default(false)
-  become: true
-  ansible.builtin.command: sh -c 'fw4 print | nft -c -f -'
-  changed_when: false
-
-- name: Restart firewall service
+- name: Apply validated firewall configuration
   listen: Restart firewall
   become: true
   ansible.builtin.service:
     name: firewall
-    state: restarted
+    # fw4 reload replaces nftables rules transactionally, without stop/start.
+    state: "{{ 'reloaded' if prepare_detect_is_openwrt | default(false) else 'restarted' }}"
 
 - name: Restart nginx
   become: true
