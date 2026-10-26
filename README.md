@@ -45,7 +45,7 @@ Cloudflare provides public DNS for the services. Its proxy can also shield eligi
    - Zone resources:
      - `Include - All Zones`
 
-   Store the token in the [Cloudflare Kubernetes secret](charts/services/templates/cert-manager.yaml).
+   Store the token in the [Cloudflare Kubernetes secret](charts/services/templates/kube-system/cert-manager.yaml).
 
 ## Configure SES SMTP (optional, recommended)
 
@@ -53,7 +53,7 @@ AWS SES provides outbound email for applications in this stack.
 
 1. Create an AWS account and verify your domain in `AWS SES Console > Verified identities`.
 2. Request production access from `AWS SES Console > Account dashboard` to leave sandbox mode.
-3. Create SMTP credentials under `AWS SES Console > SMTP settings`, then store them in the [SMTP Kubernetes secret](charts/services/templates/smtp-secret.yaml).
+3. Create SMTP credentials under `AWS SES Console > SMTP settings`, then store them in the [SMTP Kubernetes secret](charts/services/templates/applications/smtp-secret.yaml).
 4. Configure applications with the endpoint `email-smtp.<region>.amazonaws.com` and port 587 (STARTTLS) or 465 (TLS).
 
 ## Configure ZFS (optional, recommended)
