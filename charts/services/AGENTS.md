@@ -32,14 +32,14 @@ This guide applies to the `charts/services` subtree. Follow the repository-wide
   enabled: {{ include "metrics.enabled" . | default false }}
   ```
 
-- Follow [`templates/nextcloud.yaml`](templates/nextcloud.yaml) as the reference
+- Follow [`templates/applications/nextcloud.yaml`](templates/applications/nextcloud.yaml) as the reference
   for application gating and dependency declarations.
 - You MUST declare GPU resources through `gpu.device`. Follow
-  [`templates/immich.yaml`](templates/immich.yaml) as the reference and do not
+  [`templates/applications/immich.yaml`](templates/applications/immich.yaml) as the reference and do not
   duplicate vendor mapping or driver checks in application templates.
 - Implement VPN routing through the helper defined in
-  [`templates/_tunnel.tpl`](templates/_tunnel.tpl). Follow
-  [`templates/joal.yaml`](templates/joal.yaml) as the reference integration.
+  [`templates/applications/_tunnel.tpl`](templates/applications/_tunnel.tpl). Follow
+  [`templates/applications/joal.yaml`](templates/applications/joal.yaml) as the reference integration.
 
 ## 3. Workload Configuration
 
@@ -112,7 +112,7 @@ Implement the shared-service choices in the root guide as follows:
 - You SHOULD enable metrics with the `metrics.enabled` helper when supported.
 - You MUST use the `tunnel.deployment.container` sidecar helper from
   `_tunnel.tpl` for VPN routing.
-- You MUST add Authentik blueprints to `templates/authentik.yaml` or provide
+- You MUST add Authentik blueprints to `templates/applications/authentik.yaml` or provide
   them through `extraManifests`.
 - TrueCharts and TrueForge integrations MAY provide Authentik blueprints
   through ConfigMap values.
@@ -162,7 +162,7 @@ The following annotations are optional:
 ## 7. Observability
 
 - You MUST add Grafana dashboards for application metrics to
-  `templates/prometheus.yaml`.
+  `templates/platform/prometheus.yaml`.
 - In a `ServiceMonitor`, you SHOULD relabel `instance` to the stable
   `__meta_kubernetes_pod_name` value. This avoids time-series churn when pods
   restart.
