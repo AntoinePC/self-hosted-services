@@ -87,6 +87,7 @@ provisioner:
           manifest_only_setup: false
           backup_keys_to_controller: false
           tenants_count: 1
+          tailscale_exit_node: false
           chartValuesOverrides:
             enableAllApplicationsByDefault: false
             highAvailability: false
