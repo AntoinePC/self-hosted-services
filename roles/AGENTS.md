@@ -25,3 +25,13 @@ This guide applies to the `roles` subtree. Follow the repository-wide
   the canonical command flow.
 - The root guide's permission requirement for `ansible-playbook` continues to
   apply.
+
+## Router Safety
+
+- Keep fw4 validation ahead of firewall, network, and SQM handlers: network
+  and SQM reloads can trigger firewall work indirectly.
+- Preserve the Qualcomm NSS flow-offloading guard and the persistent firewall
+  recovery in `router_setup` when updating router roles. Test failure paths with
+  `tests/test_router_safety.py`; lint alone cannot verify handler ordering.
+- When upstream renames facts or moves templates between roles, audit existing
+  router safeguards for stale names and paths, even when Git merges cleanly.
