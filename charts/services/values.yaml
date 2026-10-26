@@ -143,8 +143,9 @@ applications:
   #   enabled: true
   ipmi_exporter: {}
   #   enabled: true
-  kured: {}
-  #   enabled: true
+  kured:
+    # Disabled until a kexec reboot is verified not to break the discrete GPUs.
+    enabled: false
   jellyfin: {}
   #   enabled: true
   #   gpu_vendor: intel
