@@ -13,6 +13,8 @@ spec:
   serverSide: "true"
   forceConflicts: true
   values:
+    autoscaling:
+      enabled: false
     resources:
       requests:
         cpu: {{ include "app.resources.cpu" (list $ "100m") }}
